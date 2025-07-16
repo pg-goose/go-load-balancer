@@ -11,3 +11,4 @@ https://kasvith.me/posts/lets-create-a-simple-lb-go/
 
 > Round Robin is the simplest one.
 
+- **Pasive Health Check:** Parallel to the main execution, stablish a tcp connection to check to every backend (and close it if succesful).

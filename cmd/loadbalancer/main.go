@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	_ "net/http/pprof"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -78,10 +77,6 @@ var port = flag.Int("port", 8080, "port where the load balancer listens")
 var backends = []string{"http://0.0.0.0:8081", "http://0.0.0.0:8082", "http://0.0.0.0:8083"}
 
 func main() {
-	go func() {
-		http.ListenAndServe("localhost:6060", nil) // pprof endpoint
-	}()
-
 	backendPool := NewBackendPool(backends...)
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),

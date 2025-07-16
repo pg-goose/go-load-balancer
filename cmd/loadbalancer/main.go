@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -22,13 +23,18 @@ type Backend struct {
 
 type BackendPool struct {
 	backends []*Backend
+	cancel   context.CancelFunc
+	ctx      context.Context
 	current  uint64
 }
 
 func NewBackendPool(addrs ...string) *BackendPool {
+	ctx, cancel := context.WithCancel(context.Background())
 	bp := &BackendPool{
 		backends: make([]*Backend, 0, len(addrs)),
 		current:  0,
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 	for _, a := range addrs {
 		u, err := url.Parse(a)
@@ -43,8 +49,50 @@ func NewBackendPool(addrs ...string) *BackendPool {
 	return bp
 }
 
-func (bp *BackendPool) NextIdx() int {
-	return int(atomic.AddUint64(&bp.current, uint64(1)) % uint64(len(bp.backends)))
+func (bp *BackendPool) Balance(w http.ResponseWriter, r *http.Request) {
+	target := bp.Next()
+	if target != nil {
+		target.ReverseProxy.ServeHTTP(w, r)
+		return
+	}
+	http.Error(w, "server not available", http.StatusServiceUnavailable)
+}
+
+func (bp *BackendPool) Close() {
+	// Cancel the backend pool context,
+	// this will return any long lived function that depends on it
+	bp.cancel()
+}
+
+const HEALTH_CHECK_TIMEOUT = 1
+const HEALTH_CHECK_PERIOD = 5
+
+// HealthCheck initiates an infinite loop that iterates the registered backends
+// every HEALTH_CHECK_PERIOD seconds and dials a tcp connection to them with a
+// HEALTH_CHECK_TIMEOUT seconds timeout. The loop ends when the BackendPool context
+// is canceled.
+//
+// - TODO: Make constants variables.
+func (bp *BackendPool) HealthCheck() {
+	ticker := time.NewTicker(HEALTH_CHECK_PERIOD * time.Second)
+	timeout := HEALTH_CHECK_TIMEOUT * time.Second
+
+	for range ticker.C {
+		for _, b := range bp.backends {
+			host := b.URL.Host
+			conn, err := net.DialTimeout("tcp", host, timeout)
+			conn.Close()
+			if err != nil {
+				log.Printf("%s unreachable", host)
+			}
+			b.Alive = (err == nil)
+		}
+		select {
+		case <-bp.ctx.Done():
+			return
+		default:
+		}
+	}
 }
 
 func (bp *BackendPool) Next() *Backend {
@@ -64,13 +112,8 @@ func (bp *BackendPool) Next() *Backend {
 	return nil
 }
 
-func (bp *BackendPool) balance(w http.ResponseWriter, r *http.Request) {
-	target := bp.Next()
-	if target != nil {
-		target.ReverseProxy.ServeHTTP(w, r)
-		return
-	}
-	http.Error(w, "server not available", http.StatusServiceUnavailable)
+func (bp *BackendPool) NextIdx() int {
+	return int(atomic.AddUint64(&bp.current, uint64(1)) % uint64(len(bp.backends)))
 }
 
 var port = flag.Int("port", 8080, "port where the load balancer listens")
@@ -78,26 +121,13 @@ var backends = []string{"http://0.0.0.0:8081", "http://0.0.0.0:8082", "http://0.
 
 func main() {
 	backendPool := NewBackendPool(backends...)
+	defer backendPool.Close()
+
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
-		Handler: http.HandlerFunc(backendPool.balance),
+		Handler: http.HandlerFunc(backendPool.Balance),
 	}
-	for _, backend := range backendPool.backends {
-		go func(b *Backend) {
-			t := time.NewTicker(time.Second * 5)
-			timeout := 2 * time.Second
-			host := b.URL.Host
-			for range t.C {
-				conn, err := net.DialTimeout("tcp", host, timeout)
-				if err != nil {
-					log.Printf("%s unreachable", host)
-					b.Alive = false
-					continue
-				}
-				conn.Close()
-				b.Alive = true
-			}
-		}(backend)
-	}
+
+	go backendPool.HealthCheck()
 	log.Fatal(server.ListenAndServe())
 }

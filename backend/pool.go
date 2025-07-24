@@ -14,7 +14,7 @@ import (
 type Pool struct {
 	backends []*Backend
 	cancel   context.CancelFunc
-	ctx      context.Context
+	context  context.Context
 	current  uint64
 }
 
@@ -23,7 +23,7 @@ func NewPool(addrs ...string) *Pool {
 	bp := &Pool{
 		backends: make([]*Backend, 0, len(addrs)),
 		current:  0,
-		ctx:      ctx,
+		context:  ctx,
 		cancel:   cancel,
 	}
 	for _, a := range addrs {
@@ -39,8 +39,8 @@ func NewPool(addrs ...string) *Pool {
 	return bp
 }
 
-func (bp *Pool) Balance(w http.ResponseWriter, r *http.Request) {
-	target := bp.Next()
+func (pool *Pool) Balance(w http.ResponseWriter, r *http.Request) {
+	target := pool.Next()
 	if target != nil {
 		target.ReverseProxy.ServeHTTP(w, r)
 		return
@@ -48,10 +48,10 @@ func (bp *Pool) Balance(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "server not available", http.StatusServiceUnavailable)
 }
 
-func (bp *Pool) Close() {
+func (pool *Pool) Close() {
 	// Cancel the backend pool context,
 	// this will return any long lived function that depends on it
-	bp.cancel()
+	pool.cancel()
 }
 
 const HEALTH_CHECK_TIMEOUT = 1
@@ -63,49 +63,49 @@ const HEALTH_CHECK_PERIOD = 5
 // is canceled.
 //
 // - TODO: Make constants variables.
-func (bp *Pool) HealthCheck() {
+func (pool *Pool) HealthCheck() {
 	ticker := time.NewTicker(HEALTH_CHECK_PERIOD * time.Second)
 	timeout := HEALTH_CHECK_TIMEOUT * time.Second
 
 	for range ticker.C {
-		for _, b := range bp.backends {
+		for _, b := range pool.backends {
 			host := b.URL.Host
 			conn, err := net.DialTimeout("tcp", host, timeout)
 			conn.Close()
 			if err != nil {
 				log.Printf("%s unreachable", host)
 			}
-			b.Alive = (err == nil)
+			b.Alive = (err == nil) // TODO definir IsAlive con mutex
 		}
 		select {
-		case <-bp.ctx.Done():
+		case <-pool.context.Done():
 			return
 		default:
 		}
 	}
 }
 
-func (bp *Pool) Next() *Backend {
-	next := bp.NextIdx()
-	ln := len(bp.backends)
+func (pool *Pool) Next() *Backend {
+	next := pool.NextIdx()
+	ln := len(pool.backends)
 	last := ln + next
 	for i := next; i < last; i++ {
 		idx := i % ln
-		if !bp.backends[idx].Alive {
+		if !pool.backends[idx].Alive {
 			continue
 		}
 		if i != next {
-			atomic.StoreUint64(&bp.current, uint64(idx))
+			atomic.StoreUint64(&pool.current, uint64(idx))
 		}
-		return bp.backends[idx]
+		return pool.backends[idx]
 	}
 	return nil
 }
 
-func (bp *Pool) NextIdx() int {
-	return int(atomic.AddUint64(&bp.current, uint64(1)) % uint64(len(bp.backends)))
+func (pool *Pool) NextIdx() int {
+	return int(atomic.AddUint64(&pool.current, uint64(1)) % uint64(len(pool.backends)))
 }
 
 // TODO if a request fails with a 5xx status code re-check if alive and retry 3 times with 10ms wait
 // TODO attempt a retried 5xx request on another server 1 time
-// VERY TODO: configurable error interception?
+// VERY TODO: read configuration for: registering backends, error intervention strategies, set constants, etc

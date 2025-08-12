@@ -1,26 +1,19 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log"
-	"net/http"
 
-	"github.com/pg-goose/go-load-balancer/backend"
+	lb "github.com/pg-goose/go-load-balancer/loadbalancer"
 )
 
-var port = flag.Int("port", 8080, "port where the load balancer listens")
-var backends = []string{"http://0.0.0.0:8081", "http://0.0.0.0:8082", "http://0.0.0.0:8083"}
-
 func main() {
-	backendPool := backend.NewPool(backends...)
-	defer backendPool.Close()
+	lb := lb.NewLoadBalancer(&lb.Config{
+		Port:              8080,
+		Backends:          []string{"http://0.0.0.0:8081"},
+		HealthCheckTries:  2,
+		HealthCheckPeriod: 5,
+	})
+	defer lb.Stop()
 
-	server := http.Server{
-		Addr:    fmt.Sprintf(":%d", *port),
-		Handler: http.HandlerFunc(backendPool.Balance),
-	}
-
-	go backendPool.HealthCheck()
-	log.Fatal(server.ListenAndServe())
+	log.Fatal(lb.Start())
 }

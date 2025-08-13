@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ const NB_BACKENDS = 5
 func TestLoadBalancer(t *testing.T) {
 	urls := []string{}
 	servers := []*httptest.Server{}
+	expected := []string{}
 
 	for i := range NB_BACKENDS {
 		idx := i
@@ -27,6 +29,7 @@ func TestLoadBalancer(t *testing.T) {
 		defer s.Close()
 		urls = append(urls, s.URL)
 		servers = append(servers, s)
+		expected = append(expected, fmt.Sprintf("server: %d", idx))
 	}
 	lb := lb.NewLoadBalancer(&lb.Config{
 		Port:              8080,
@@ -39,10 +42,10 @@ func TestLoadBalancer(t *testing.T) {
 			t.Error("Load balancer failed to start:", err)
 		}
 	}()
-
 	// let the lb health check all backends
 	time.Sleep(time.Millisecond * time.Duration(len(servers)))
 
+	results := []string{}
 	for range len(urls) {
 		resp, err := http.Get("http://localhost" + lb.Url()) // TODO fix lb.Url() only returning :8080
 		if err != nil {
@@ -53,8 +56,11 @@ func TestLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-		t.Log(string(r))
+		results = append(results, string(r))
 	}
-	t.FailNow()
+	slices.Sort(results) // sort them since the order is not important, easier to compare
+	if comp := slices.Compare(expected, results); comp != 0 {
+		t.Fatal("result not equal to expected")
+	}
 	defer lb.Stop()
 }

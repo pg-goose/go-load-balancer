@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	lb "github.com/pg-goose/go-load-balancer/loadbalancer"
 )
@@ -38,6 +39,9 @@ func TestLoadBalancer(t *testing.T) {
 			t.Error("Load balancer failed to start:", err)
 		}
 	}()
+
+	// let the lb health check all backends
+	time.Sleep(time.Millisecond * time.Duration(len(servers)))
 
 	for range len(urls) {
 		resp, err := http.Get("http://localhost" + lb.Url()) // TODO fix lb.Url() only returning :8080

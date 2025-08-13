@@ -63,10 +63,8 @@ func (pool *Pool) Close() {
 // HEALTH_CHECK_TIMEOUT seconds timeout. The loop ends when the BackendPool context
 // is canceled.
 func (pool *Pool) HealthCheck() {
-	ticker := time.NewTicker(time.Duration(pool.healthCheckPeriod) * time.Second)
 	timeout := time.Duration(pool.healthCheckTries) * time.Second
-
-	for range ticker.C {
+	check := func() {
 		for _, b := range pool.backends {
 			host := b.URL.Host
 			conn, err := net.DialTimeout("tcp", host, timeout)
@@ -81,6 +79,12 @@ func (pool *Pool) HealthCheck() {
 			return
 		default:
 		}
+	}
+	// perform a first check to set the state of all backends and avoid ticker delay
+	check()
+	ticker := time.NewTicker(time.Duration(pool.healthCheckPeriod) * time.Second)
+	for range ticker.C {
+		check()
 	}
 }
 

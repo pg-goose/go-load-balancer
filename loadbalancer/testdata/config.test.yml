@@ -1,0 +1,7 @@
+port: 8080
+backends:
+    - http://10.0.0.1:8080/health
+    - http://10.0.0.2:8080/health
+    - http://10.0.0.3:8080/health
+healthCheckTries: 3
+healthCheckPeriod: 5

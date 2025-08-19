@@ -1,5 +1,5 @@
 port: 8080
-healthCheckTries: 3
+healthCheckTimeout: 3
 healthCheckPeriod: 5
 upstreams:
     - http://10.0.0.1:8080/health

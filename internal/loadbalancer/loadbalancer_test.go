@@ -33,10 +33,10 @@ func TestLoadBalancer(t *testing.T) {
 		expected = append(expected, fmt.Sprintf("server: %d", idx))
 	}
 	lb := lb.NewLoadBalancer(&lb.Config{
-		Port:              8080,
-		Upstreams:         urls,
-		HealthCheckTries:  2,
-		HealthCheckPeriod: 5,
+		Port:               8080,
+		Upstreams:          urls,
+		HealthCheckTimeout: 2,
+		HealthCheckPeriod:  5,
 	})
 	go func() {
 		if err := lb.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {

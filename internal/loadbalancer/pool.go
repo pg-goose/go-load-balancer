@@ -16,12 +16,12 @@ import (
 // to ensure traffic is only directed to healthy instances. The pool keeps track
 // of each server's health status by performing periodic health checks.
 type UpstreamPool struct {
-	upstreams         []*Upstream
-	cancel            context.CancelFunc
-	context           context.Context
-	current           uint64
-	healthCheckTries  int
-	healthCheckPeriod int
+	upstreams          []*Upstream
+	cancel             context.CancelFunc
+	context            context.Context
+	current            uint64
+	healthCheckTimeout int
+	healthCheckPeriod  int
 }
 
 // NewPool creates a new UpstreamPool based on the provided configuration.
@@ -34,12 +34,15 @@ type UpstreamPool struct {
 func NewPool(config *Config) *UpstreamPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	pool := &UpstreamPool{
-		upstreams:         make([]*Upstream, 0, len(config.Upstreams)),
-		current:           0,
-		context:           ctx,
-		cancel:            cancel,
-		healthCheckTries:  config.HealthCheckTries,
-		healthCheckPeriod: config.HealthCheckPeriod,
+		upstreams:          make([]*Upstream, 0, len(config.Upstreams)),
+		current:            0,
+		context:            ctx,
+		cancel:             cancel,
+		healthCheckTimeout: config.HealthCheckTimeout,
+		healthCheckPeriod:  config.HealthCheckPeriod,
+	}
+	if len(config.Upstreams) == 0 {
+		log.Fatalln("No upstreams defined, closing now.")
 	}
 	for _, a := range config.Upstreams {
 		u, err := url.Parse(a)
@@ -77,7 +80,7 @@ func (pool *UpstreamPool) Close() {
 // HEALTH_CHECK_TIMEOUT seconds timeout. The loop ends when the BackendPool context
 // is canceled.
 func (pool *UpstreamPool) HealthCheck() {
-	timeout := time.Duration(pool.healthCheckTries) * time.Second
+	timeout := time.Duration(pool.healthCheckTimeout) * time.Second
 	check := func() {
 		for _, b := range pool.upstreams {
 			host := b.URL.Host

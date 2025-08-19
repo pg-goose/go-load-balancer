@@ -16,9 +16,8 @@ type Config struct {
 	// Each entry is typically a host:port or URL.
 	Upstreams []string `yaml:"upstreams"`
 
-	// HealthCheckTries is the number of consecutive failed health checks
-	// before an upstream is considered unhealthy.
-	HealthCheckTries int `yaml:"healthCheckTries"`
+	// HealthCheckTimeout is the timeout time before considering a backend unhealthy.
+	HealthCheckTimeout int `yaml:"healthCheckTimeout"`
 
 	// HealthCheckPeriod is the interval between health checks, in seconds.
 	HealthCheckPeriod int `yaml:"healthCheckPeriod"`

@@ -16,8 +16,8 @@ func TestLoadConfig(t *testing.T) {
 			"http://10.0.0.2:8080/health",
 			"http://10.0.0.3:8080/health",
 		},
-		HealthCheckTries:  3,
-		HealthCheckPeriod: 5,
+		HealthCheckTimeout: 3,
+		HealthCheckPeriod:  5,
 	}
 	c := lb.LoadConfig("testdata/config.test.yml")
 	assert.Equal(t, c, expected)

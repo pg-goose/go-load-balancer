@@ -91,10 +91,80 @@ Notes:
   and exposes a /health endpoint for health checks.
 ```
 
-> 
-> ```bash
-> for i in {1..6}; do curl -s http://localhost:8080 | head -n1; done
-> ```
+### Setup
+
+Follow these steps to get a local demo running.
+
+1) **Get the binaries**
+
+_Build from source (recommended)_
+
+```bash
+# from the repo root
+go build -o bin/golb ./cmd/golb
+go build -o bin/toy-backend ./cmd/toy-backend
+```
+
+_…or use a prebuilt binary from releases._
+
+* Download `golb` and (optionally) `toy-backend` for your OS/arch.
+
+  ```bash
+  chmod +x golb toy-backend
+  ```
+
+2) **Start a few toy backends**
+
+Open **three terminals** and run:
+
+```bash
+./toy-backend -id 1
+./toy-backend -id 2
+./toy-backend -id 3
+```
+
+Each instance prints it's server ID and listens to port `:808[id]`
+
+#### 3) Create the config
+
+Create a `config.yaml` in your working directory:
+
+```yaml
+# config.yaml
+port: 8080
+healthCheckTimeout: 3
+healthCheckPeriod: 5
+backends:
+  - http://127.0.0.1:8081/health
+  - http://127.0.0.1:8082/health
+  - http://127.0.0.1:8083/health
+```
+
+4) **Run golb**
+
+```bash
+# with an explicit config file
+./golb -confpath ./config.yaml 
+
+# or rely on the default name (config.yml) in the current directory
+./golb
+```
+
+5) **Send a few requests**
+
+In another terminal:
+
+```bash
+for i in {1..9}; do curl -s http://127.0.0.1:8080 | head -n1; done
+```
+
+You should see the responses alternate across backends.
+
+6) **See health checks in action (optional)**
+
+* Stop one `toy-backend` process.
+* Keep curling `http://127.0.0.1:8080` — you’ll notice `golb` skips the unhealthy backend after its next check.
+* Restart it and watch it rejoin the rotation.
 
 ---
 

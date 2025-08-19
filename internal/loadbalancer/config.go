@@ -7,13 +7,27 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+// Config is the load balancer configuration, can be parsed from YAML.
 type Config struct {
-	Port              int      `yaml:"port"`
-	Upstreams         []string `yaml:"upstreams"`
-	HealthCheckTries  int      `yaml:"healthCheckTries"`
-	HealthCheckPeriod int      `yaml:"healthCheckPeriod"`
+	// Port is the TCP port the load balancer listens on.
+	Port int `yaml:"port"`
+
+	// Upstreams is the list of backend targets the load balancer will proxy to.
+	// Each entry is typically a host:port or URL.
+	Upstreams []string `yaml:"upstreams"`
+
+	// HealthCheckTries is the number of consecutive failed health checks
+	// before an upstream is considered unhealthy.
+	HealthCheckTries int `yaml:"healthCheckTries"`
+
+	// HealthCheckPeriod is the interval between health checks, in seconds.
+	HealthCheckPeriod int `yaml:"healthCheckPeriod"`
 }
 
+// LoadConfig reads a YAML configuration file from the given path p,
+// unmarshals it into a Config, and returns the populated struct.
+// On read errors it terminates the process via log.Fatal;
+// on unmarshal errors it panics via log.Panic.
 func LoadConfig(p string) *Config {
 	data, err := os.ReadFile(p)
 	if err != nil {
@@ -22,7 +36,7 @@ func LoadConfig(p string) *Config {
 	c := &Config{}
 	err = yaml.Unmarshal(data, c)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 	return c
 }

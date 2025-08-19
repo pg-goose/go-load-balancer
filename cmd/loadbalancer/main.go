@@ -4,8 +4,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/pg-goose/go-load-balancer/loadbalancer"
-	lb "github.com/pg-goose/go-load-balancer/loadbalancer"
+	"github.com/pg-goose/go-load-balancer/internal/loadbalancer"
+	lb "github.com/pg-goose/go-load-balancer/internal/loadbalancer"
 )
 
 var confpath = flag.String("confpath", "config.yml", "path to configuration file")

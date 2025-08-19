@@ -35,7 +35,3 @@ func main() {
 		http.ListenAndServe(p, nil),
 	)
 }
-
-// go run main.go -id 1 &
-// go run main.go -id 2 &
-// go run main.go -id 3 &

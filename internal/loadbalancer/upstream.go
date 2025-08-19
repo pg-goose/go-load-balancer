@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-type Backend struct {
+type Upstream struct {
 	URL          *url.URL
 	Alive        bool
 	Mux          sync.RWMutex

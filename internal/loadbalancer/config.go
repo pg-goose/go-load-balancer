@@ -9,7 +9,7 @@ import (
 
 type Config struct {
 	Port              int      `yaml:"port"`
-	Backends          []string `yaml:"backends"`
+	Upstreams         []string `yaml:"upstreams"`
 	HealthCheckTries  int      `yaml:"healthCheckTries"`
 	HealthCheckPeriod int      `yaml:"healthCheckPeriod"`
 }

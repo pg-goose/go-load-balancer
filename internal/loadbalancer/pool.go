@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-type Pool struct {
-	backends          []*Backend
+type UpstreamPool struct {
+	upstreams         []*Upstream
 	cancel            context.CancelFunc
 	context           context.Context
 	current           uint64
@@ -20,22 +20,22 @@ type Pool struct {
 	healthCheckPeriod int
 }
 
-func NewPool(config *Config) *Pool {
+func NewPool(config *Config) *UpstreamPool {
 	ctx, cancel := context.WithCancel(context.Background())
-	pool := &Pool{
-		backends:          make([]*Backend, 0, len(config.Backends)),
+	pool := &UpstreamPool{
+		upstreams:         make([]*Upstream, 0, len(config.Upstreams)),
 		current:           0,
 		context:           ctx,
 		cancel:            cancel,
 		healthCheckTries:  config.HealthCheckTries,
 		healthCheckPeriod: config.HealthCheckPeriod,
 	}
-	for _, a := range config.Backends {
+	for _, a := range config.Upstreams {
 		u, err := url.Parse(a)
 		if err != nil {
 			log.Fatalf("failed to parse backend URL %s: %v", a, err)
 		}
-		pool.backends = append(pool.backends, &Backend{
+		pool.upstreams = append(pool.upstreams, &Upstream{
 			URL:          u,
 			ReverseProxy: httputil.NewSingleHostReverseProxy(u),
 		})
@@ -43,7 +43,7 @@ func NewPool(config *Config) *Pool {
 	return pool
 }
 
-func (pool *Pool) Balance(w http.ResponseWriter, r *http.Request) {
+func (pool *UpstreamPool) Balance(w http.ResponseWriter, r *http.Request) {
 	target := pool.Next()
 	if target != nil {
 		target.ReverseProxy.ServeHTTP(w, r)
@@ -52,7 +52,7 @@ func (pool *Pool) Balance(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "server not available", http.StatusServiceUnavailable)
 }
 
-func (pool *Pool) Close() {
+func (pool *UpstreamPool) Close() {
 	// Cancel the backend pool context,
 	// this will return any long lived function that depends on it
 	pool.cancel()
@@ -62,10 +62,10 @@ func (pool *Pool) Close() {
 // every HEALTH_CHECK_PERIOD seconds and dials a tcp connection to them with a
 // HEALTH_CHECK_TIMEOUT seconds timeout. The loop ends when the BackendPool context
 // is canceled.
-func (pool *Pool) HealthCheck() {
+func (pool *UpstreamPool) HealthCheck() {
 	timeout := time.Duration(pool.healthCheckTries) * time.Second
 	check := func() {
-		for _, b := range pool.backends {
+		for _, b := range pool.upstreams {
 			host := b.URL.Host
 			conn, err := net.DialTimeout("tcp", host, timeout)
 			conn.Close()
@@ -88,23 +88,23 @@ func (pool *Pool) HealthCheck() {
 	}
 }
 
-func (pool *Pool) Next() *Backend {
+func (pool *UpstreamPool) Next() *Upstream {
 	next := pool.NextIdx()
-	ln := len(pool.backends)
+	ln := len(pool.upstreams)
 	last := ln + next
 	for i := next; i < last; i++ {
 		idx := i % ln
-		if !pool.backends[idx].Alive {
+		if !pool.upstreams[idx].Alive {
 			continue
 		}
 		if i != next {
 			atomic.StoreUint64(&pool.current, uint64(idx))
 		}
-		return pool.backends[idx]
+		return pool.upstreams[idx]
 	}
 	return nil
 }
 
-func (pool *Pool) NextIdx() int {
-	return int(atomic.AddUint64(&pool.current, uint64(1)) % uint64(len(pool.backends)))
+func (pool *UpstreamPool) NextIdx() int {
+	return int(atomic.AddUint64(&pool.current, uint64(1)) % uint64(len(pool.upstreams)))
 }

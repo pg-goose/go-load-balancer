@@ -10,17 +10,18 @@ import (
 	"testing"
 	"time"
 
-	lb "github.com/pg-goose/go-load-balancer/loadbalancer"
+	lb "github.com/pg-goose/go-load-balancer/internal/loadbalancer"
+	"github.com/stretchr/testify/assert"
 )
 
-const NB_BACKENDS = 5
+const NB_UPSTREAMS = 5
 
 func TestLoadBalancer(t *testing.T) {
 	urls := []string{}
 	servers := []*httptest.Server{}
 	expected := []string{}
 
-	for i := range NB_BACKENDS {
+	for i := range NB_UPSTREAMS {
 		idx := i
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -33,7 +34,7 @@ func TestLoadBalancer(t *testing.T) {
 	}
 	lb := lb.NewLoadBalancer(&lb.Config{
 		Port:              8080,
-		Backends:          urls,
+		Upstreams:         urls,
 		HealthCheckTries:  2,
 		HealthCheckPeriod: 5,
 	})
@@ -59,8 +60,6 @@ func TestLoadBalancer(t *testing.T) {
 		results = append(results, string(r))
 	}
 	slices.Sort(results) // sort them since the order is not important, easier to compare
-	if comp := slices.Compare(expected, results); comp != 0 {
-		t.Fatal("result not equal to expected")
-	}
-	defer lb.Stop()
+	assert.Equal(t, expected, results)
+	lb.Stop()
 }

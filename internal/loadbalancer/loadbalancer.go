@@ -8,7 +8,7 @@ import (
 
 type LoadBalancer struct {
 	server      *http.Server
-	backendPool *Pool
+	backendPool *UpstreamPool
 }
 
 func NewLoadBalancer(config *Config) *LoadBalancer {

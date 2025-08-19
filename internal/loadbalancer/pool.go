@@ -86,7 +86,7 @@ func (pool *UpstreamPool) HealthCheck() {
 			if err != nil {
 				log.Printf("%s unreachable", host)
 			}
-			b.Alive = (err == nil) // TODO definir IsAlive con mutex
+			b.SetAlive(err == nil)
 		}
 		select {
 		case <-pool.context.Done():
@@ -113,7 +113,7 @@ func (pool *UpstreamPool) Next() *Upstream {
 	last := ln + next
 	for i := next; i < last; i++ {
 		idx := i % ln
-		if !pool.upstreams[idx].Alive {
+		if !pool.upstreams[idx].IsAlive() {
 			continue
 		}
 		if i != next {
